@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Runner | MINI_GAME_RETRO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #050508;
+            color: #00f2ff;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .neon-glow {
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.7), 0 0 20px rgba(0, 242, 255, 0.5);
+        }
+
+        .neon-box {
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.25), inset 0 0 15px rgba(0, 242, 255, 0.1);
+            border: 1px solid rgba(0, 242, 255, 0.4);
+        }
+
+        .purple-glow {
+            text-shadow: 0 0 10px rgba(188, 19, 254, 0.8);
+        }
+
+        /* Scanline effect */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-4 relative">
+
+    <!-- Scanline overlay -->
+    <div class="scanlines"></div>
+
+    <!-- Header / Info -->
+    <header class="w-full max-w-2xl flex justify-between items-center z-20 mb-2">
+        <div>
+            <h1 class="text-xl sm:text-2xl font-extrabold neon-glow tracking-wider">CYBER_DASH // 1.0</h1>
+            <p class="text-xs text-purple-400 purple-glow">> RETRO ARCADE ENGINE</p>
+        </div>
+        <a href="https://portfolio-debora-martins.vercel.app" target="_blank" class="text-xs px-3 py-1.5 rounded bg-black/60 border border-[#00f2ff]/40 hover:border-[#00f2ff] transition text-[#00f2ff]">
+            [ VOLTAR AO PORTFÓLIO ]
+        </a>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="w-full max-w-2xl flex flex-col items-center z-20">
+        <div class="relative w-full aspect-[4/3] sm:aspect-[16/9] bg-black/90 rounded-xl neon-box overflow-hidden flex flex-col">
+            
+            <!-- HUD Superior -->
+            <div class="flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent text-sm z-10 border-b border-[#00f2ff]/20">
+                <div class="flex gap-4">
+                    <span>SCORE: <strong id="score-display" class="text-white neon-glow">0000</strong></span>
+                    <span>HI-SCORE: <strong id="highscore-display" class="text-purple-400 purple-glow">0000</strong></span>
+                </div>
+                <div class="text-xs text-cyan-300 animate-pulse" id="status-hud">PRESSIONE ESPAÇO / TOQUE</div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative flex-1 w-full h-full cursor-pointer" id="canvas-container">
+                <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+                
+                <!-- Overlay de Tela Inicial / Fim de Jogo -->
+                <div id="game-overlay" class="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-30 transition-all duration-300">
+                    <div id="overlay-content">
+                        <h2 class="text-3xl sm:text-4xl font-extrabold text-[#00f2ff] neon-glow mb-2 tracking-widest">CYBER RUNNER</h2>
+                        <p class="text-sm text-gray-300 mb-6 max-w-xs mx-auto">Desvie dos bugs cibernéticos saltando pelas plataformas de dados!</p>
+                        <button id="start-btn" class="px-6 py-3 bg-[#00f2ff] text-black font-extrabold rounded-lg shadow-lg hover:bg-cyan-300 transition transform hover:scale-105 active:scale-95 text-sm tracking-wider">
+                            INICIALIZAR SISTEMA
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controles Móveis (Touch bar para dispositivos touch) -->
+            <div class="p-3 bg-black/80 border-t border-[#00f2ff]/20 flex justify-center gap-4 sm:hidden">
+                <button id="jump-btn" class="flex-1 py-3 bg-[#00f2ff]/20 border border-[#00f2ff] rounded text-[#00f2ff] font-bold active:bg-[#00f2ff] active:text-black transition">
+                    [ PULAR / SALTAR ]
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-4 text-center text-xs text-gray-400">
+            <p>Controles: Barra de Espaço, Seta para Cima ou Toque na Tela para Pular.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full text-center text-xs text-gray-500 z-20 mt-4">
+        © 2026 Débora Martins — Mini Game Desenvolvido em JS & Canvas
+    </footer>
+
+    <!-- Script do Jogo -->
+    <script>
+        // Web Audio API Sound Generator (Safe retro beeps without external files)
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playJump() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+            playScore() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, this.ctx.currentTime); // D5
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.08); // A5
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+            playGameOver() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.4);
+            }
+        }
+
+        const sound = new SoundFX();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('game-overlay');
+        const overlayContent = document.getElementById('overlay-content');
+        const startBtn = document.getElementById('start-btn');
+        const jumpBtn = document.getElementById('jump-btn');
+        const scoreDisplay = document.getElementById('score-display');
+        const highscoreDisplay = document.getElementById('highscore-display');
+        const statusHud = document.getElementById('status-hud');
+
+        // Configuração de Resolução Dinâmica do Canvas
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Variáveis de Estado do Jogo
+        let gameState = 'IDLE'; // IDLE, PLAYING, GAMEOVER
+        let score = 0;
+        let highscore = localStorage.getItem('cyber_highscore') || 0;
+        highscoreDisplay.innerText = String(highscore).padStart(4, '0');
+
+        let gameSpeed = 5;
+        let gravity = 0.6;
+        let obstacles = [];
+        let particles = [];
+        let frameCount = 0;
+
+        // Jogador (Cyber Runner Node)
+        const player = {
+            x: 50,
+            y: 0,
+            width: 32,
+            height: 32,
+            vy: 0,
+            jumpForce: -11,
+            grounded: false,
+            color: '#00f2ff'
+        };
+
+        // Chão e Grid cibernético de fundo
+        let floorY = 0;
+
+        function resetGame() {
+            floorY = canvas.height - 50;
+            player.y = floorY - player.height;
+            player.vy = 0;
+            obstacles = [];
+            particles = [];
+            score = 0;
+            gameSpeed = 5;
+            frameCount = 0;
+            gameState = 'PLAYING';
+            overlay.style.opacity = '0';
+            overlay.style.pointerEvents = 'none';
+            statusHud.innerText = 'SISTEMA ATIVO';
+            sound.init();
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            sound.playGameOver();
+            if (score > highscore) {
+                highscore = Math.floor(score);
+                localStorage.setItem('cyber_highscore', highscore);
+                highscoreDisplay.innerText = String(highscore).padStart(4, '0');
+            }
+            
+            overlayContent.innerHTML = `
+                <h2 class="text-3xl sm:text-4xl font-extrabold text-red-500 neon-glow mb-2 tracking-widest">FALHA NO SISTEMA</h2>
+                <p class="text-sm text-gray-300 mb-2">SCORE FINAL: <strong class="text-white">${Math.floor(score)}</strong></p>
+                <p class="text-xs text-gray-400 mb-6">Bug cibernético detectado na matriz.</p>
+                <button id="restart-btn" class="px-6 py-3 bg-[#00f2ff] text-black font-extrabold rounded-lg shadow-lg hover:bg-cyan-300 transition transform hover:scale-105 active:scale-95 text-sm tracking-wider">
+                    REINICIALIZAR SISTEMA
+                </button>
+            `;
+            document.getElementById('restart-btn').addEventListener('click', resetGame);
+            overlay.style.opacity = '1';
+            overlay.style.pointerEvents = 'auto';
+            statusHud.innerText = 'SISTEMA INTERROMPIDO';
+        }
+
+        // Lógica de Pulo
+        function jump() {
+            if (gameState === 'PLAYING' && player.grounded) {
+                player.vy = player.jumpForce;
+                player.grounded = false;
+                sound.playJump();
+                
+                // Criar partículas de salto
+                for(let i=0; i<8; i++) {
+                    particles.push({
+                        x: player.x + player.width/2,
+                        y: floorY,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: Math.random() * -3,
+                        color: '#00f2ff',
+                        life: 20
+                    });
+                }
+            } else if (gameState === 'IDLE' || gameState === 'GAMEOVER') {
+                resetGame();
+            }
+        }
+
+        // Eventos de Controles
+        window.addEventListener('keydown', (e) => {
+            if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
+                e.preventDefault();
+                jump();
+            }
+        });
+
+        canvas.addEventListener('click', jump);
+        jumpBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            jump();
+        });
+        startBtn.addEventListener('click', resetGame);
+
+        // Spawn de Obstáculos (Bugs / Firewall Blocks)
+        function spawnObstacle() {
+            const types = ['spike', 'block', 'drone'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            
+            let height = 30 + Math.random() * 25;
+            let width = 25 + Math.random() * 20;
+            let y = floorY - height;
+
+            if (type === 'drone') {
+                y = floorY - 70 - Math.random() * 40;
+                height = 20;
+                width = 30;
+            }
+
+            obstacles.push({
+                x: canvas.width + 50,
+                y: y,
+                width: width,
+                height: height,
+                type: type,
+                color: type === 'drone' ? '#bc13fe' : '#ff0055'
+            });
+        }
+
+        // Loop Principal do Jogo
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            floorY = canvas.height - 50;
+
+            // Gravidade e Física do Jogador
+            player.vy += gravity;
+            player.y += player.vy;
+
+            if (player.y >= floorY - player.height) {
+                player.y = floorY - player.height;
+                player.vy = 0;
+                player.grounded = true;
+            }
+
+            // Aceleração de Dificuldade Baseada no Score
+            score += 0.15;
+            gameSpeed = 5 + Math.floor(score / 200) * 0.7;
+            scoreDisplay.innerText = String(Math.floor(score)).padStart(4, '0');
+
+            // Gerenciamento de Obstáculos
+            if (frameCount % Math.max(70 - Math.floor(score/50), 35) === 0) {
+                spawnObstacle();
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.x -= gameSpeed;
+
+                // Colisão AABB simples
+                if (
+                    player.x < obs.x + obs.width - 6 &&
+                    player.x + player.width - 6 > obs.x &&
+                    player.y < obs.y + obs.height - 4 &&
+                    player.y + player.height - 4 > obs.y
+                ) {
+                    triggerGameOver();
+                }
+
+                // Remover obstáculos fora da tela
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(i, 1);
+                    sound.playScore();
+                }
+            }
+
+            // Atualização de Partículas
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            frameCount++;
+        }
+
+        function draw() {
+            // Limpar Tela com tema cibernético escuro
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar Grade de Fundo Neon em perspectiva suave
+            ctx.strokeStyle = 'rgba(0, 242, 255, 0.08)';
+            ctx.lineWidth = 1;
+            const gridSpacing = 40;
+            let offset = (frameCount * gameSpeed * 0.5) % gridSpacing;
+            
+            ctx.beginPath();
+            for (let x = -offset; x < canvas.width; x += gridSpacing) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, floorY);
+            }
+            ctx.stroke();
+
+            // Desenhar Chão / Trilha de Dados Neon
+            ctx.strokeStyle = '#00f2ff';
+            ctx.shadowColor = '#00f2ff';
+            ctx.shadowBlur = 12;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, floorY);
+            ctx.lineTo(canvas.width, floorY);
+            ctx.stroke();
+            ctx.shadowBlur = 0; // resetar sombra
+
+            // Desenhar Obstáculos
+            obstacles.forEach(obs => {
+                ctx.fillStyle = obs.color;
+                ctx.shadowColor = obs.color;
+                ctx.shadowBlur = 10;
+                
+                if (obs.type === 'spike') {
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, floorY);
+                    ctx.lineTo(obs.x + obs.width / 2, obs.y);
+                    ctx.lineTo(obs.x + obs.width, floorY);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (obs.type === 'drone') {
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(obs.x + 5, obs.y + 6, 6, 6);
+                    ctx.fillRect(obs.x + 19, obs.y + 6, 6, 6);
+                } else {
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    // Linhas de circuito interno do bloco
+                    ctx.strokeStyle = '#050508';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(obs.x + 4, obs.y + 4, obs.width - 8, obs.height - 8);
+                }
+                ctx.shadowBlur = 0;
+            });
+
+            // Desenhar Partículas
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 3, 3);
+            });
+
+            // Desenhar Jogador (Player Core Node)
+            ctx.fillStyle = player.color;
+            ctx.shadowColor = player.color;
+            ctx.shadowBlur = 15;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            // Detalhe interno do player (olho digital / núcleo)
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(player.x + player.width - 10, player.y + 8, 4, 16);
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Iniciar loop de animação
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
